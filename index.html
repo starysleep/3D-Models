@@ -3,19 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Models</title>
-
-<script type="importmap">
-  {
-    "imports": {
-      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-    }
-  }
-</script>
-
+    <title>3D Box dengan Proyeksi Perspektif & Planar Shadow</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: linear-gradient(to bottom, #87CEEB 0%, #E0F6FF 100%);
+            font-family: Arial, sans-serif;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 100;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+      }
+    </script>
 </head>
 <body>
-    
+    <div id="info">
+        <h3>3D Box dengan Proyeksi Perspektif & Planar Shadow</h3>
+        <p>Gunakan mouse untuk memutar kamera</p>
+        <p>Scroll untuk zoom</p>
+    </div>
+    <script type="module" src="js/script.js"></script>
 </body>
 </html>
