@@ -1,2 +1,4 @@
 Untuk menjalankan program run:
-npx vite
+
+-npm install --save-dev vite
+-npx vite
