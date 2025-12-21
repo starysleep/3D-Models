@@ -156,27 +156,190 @@ scene.add(gridHelper);
 const axesHelper = new THREE.AxesHelper(5);
 scene.add(axesHelper);
 
+// ===== SMOOTHNESS INDICATOR =====
+let lastTime = performance.now();
+let fps = 60;
+let frameTime = 16.67;
+let frameTimes = [];
+const maxFrameTimeHistory = 60;
+let smoothness = 100;
+
+// ===== FPS LIMIT CONTROL =====
+let fpsLimitEnabled = false;
+let lastFrameTime = 0;
+const targetFrameTime = 1000 / 60; // 60 FPS = 16.67ms per frame
+
+// Update FPS indicator
+function updateFPSIndicator() {
+    const fpsElement = document.getElementById('fps-value');
+    const fpsDisplay = document.getElementById('fps-display');
+    const fpsIndicator = document.getElementById('fps-indicator');
+    
+    if (fpsElement && fpsDisplay) {
+        const roundedFPS = Math.round(fps);
+        fpsElement.textContent = String(roundedFPS);
+        fpsDisplay.textContent = String(roundedFPS);
+        
+        // Update color based on FPS
+        if (fpsIndicator) {
+            fpsIndicator.className = '';
+            if (fps >= 55) {
+                fpsIndicator.classList.add('fps-good');
+            } else if (fps >= 30) {
+                fpsIndicator.classList.add('fps-medium');
+            } else {
+                fpsIndicator.classList.add('fps-bad');
+            }
+        }
+    }
+}
+
+// Update frame time indicator
+function updateFrameTimeIndicator() {
+    const frameTimeElement = document.getElementById('frame-time');
+    if (frameTimeElement) {
+        const frameTimeStr = (Math.round(frameTime * 100) / 100).toFixed(2) + 'ms';
+        frameTimeElement.textContent = frameTimeStr;
+    }
+}
+
+// Update smoothness indicator
+function updateSmoothnessIndicator() {
+    const smoothnessValueElement = document.getElementById('smoothness-value');
+    const smoothnessFillElement = document.getElementById('smoothness-fill');
+    const statusBadge = document.getElementById('status-badge');
+    
+    // Calculate smoothness even with limited data
+    if (frameTimes.length > 1) {
+        // Calculate variance in frame times (lower variance = smoother)
+        const avgFrameTime = frameTimes.reduce((a, b) => a + b, 0) / frameTimes.length;
+        const variance = frameTimes.reduce((sum, ft) => sum + Math.pow(ft - avgFrameTime, 2), 0) / frameTimes.length;
+        const stdDev = Math.sqrt(variance);
+        
+        // Calculate smoothness (0-100%, based on consistency)
+        // Lower stdDev = higher smoothness
+        // Ideal frame time is ~16.67ms (60fps), variance should be minimal
+        // Adjust multiplier based on sample size for better responsiveness
+        const multiplier = frameTimes.length < 10 ? 10 : 15;
+        smoothness = Math.max(0, Math.min(100, 100 - (stdDev * multiplier)));
+    } else if (frameTimes.length === 1) {
+        // Initial smoothness estimate based on first frame
+        const idealFrameTime = 16.67; // 60 FPS target
+        const deviation = Math.abs(frameTimes[0] - idealFrameTime);
+        smoothness = Math.max(0, Math.min(100, 100 - (deviation * 2)));
+    } else {
+        // Default smoothness for initial state
+        smoothness = 100;
+    }
+    
+    // Always update UI elements if they exist
+    if (smoothnessValueElement) {
+        smoothnessValueElement.textContent = String(Math.round(smoothness)) + '%';
+    }
+    
+    if (smoothnessFillElement) {
+        smoothnessFillElement.style.width = smoothness + '%';
+        
+        // Update color based on smoothness
+        smoothnessFillElement.className = 'smoothness-fill';
+        if (smoothness >= 80) {
+            // Good - green (default)
+        } else if (smoothness >= 50) {
+            smoothnessFillElement.classList.add('medium');
+        } else {
+            smoothnessFillElement.classList.add('low');
+        }
+    }
+    
+    // Update status badge
+    if (statusBadge) {
+        statusBadge.className = 'status-badge';
+        if (smoothness >= 80) {
+            statusBadge.classList.add('status-smooth');
+            statusBadge.textContent = 'Smooth';
+        } else if (smoothness >= 50) {
+            statusBadge.classList.add('status-moderate');
+            statusBadge.textContent = 'Moderate';
+        } else {
+            statusBadge.classList.add('status-lagging');
+            statusBadge.textContent = 'Lagging';
+        }
+    }
+}
+
 // ===== ANIMATION LOOP =====
 let time = 0;
+let isFirstFrame = true;
 function animate() {
     requestAnimationFrame(animate);
     
-    time += 0.01;
+    const currentTime = performance.now();
+    let deltaTime = currentTime - lastTime;
     
-    // Rotasi box
-    box.rotation.x += 0.005;
-    box.rotation.y += 0.01;
+    // FPS Limiting: Skip rendering if limit is enabled and frame came too soon
+    let shouldRender = true;
+    if (fpsLimitEnabled) {
+        const elapsed = currentTime - lastFrameTime;
+        if (elapsed < targetFrameTime) {
+            shouldRender = false; // Skip rendering but continue updating indicators
+            deltaTime = targetFrameTime; // Use target frame time for calculations
+        } else {
+            lastFrameTime = currentTime - (elapsed % targetFrameTime);
+            deltaTime = targetFrameTime; // Use target frame time when limiting
+        }
+    } else {
+        lastFrameTime = currentTime;
+    }
     
-    // Update shadow matrix saat box berputar
-    shadowBox.matrix.identity();
-    shadowBox.matrix.copy(shadowMatrix);
-    shadowBox.matrix.multiply(box.matrix);
+    lastTime = currentTime;
     
-    // Update controls
-    controls.update();
+    // Skip first frame or very large deltas (e.g., tab was inactive)
+    if (isFirstFrame || deltaTime > 1000) {
+        isFirstFrame = false;
+        deltaTime = 16.67; // Use target frame time for first frame
+    }
     
-    // Render
-    renderer.render(scene, camera);
+    // Calculate frame time and FPS
+    frameTime = deltaTime;
+    frameTimes.push(frameTime);
+    if (frameTimes.length > maxFrameTimeHistory) {
+        frameTimes.shift();
+    }
+    
+    // Calculate FPS (instant FPS for real-time feedback)
+    if (deltaTime > 0 && deltaTime < 1000) {
+        // Use instant FPS for maximum responsiveness
+        fps = 1000 / deltaTime;
+        
+        // Clamp FPS to reasonable range
+        if (fps > 144) fps = 144; // Cap at 144 FPS for display
+        if (fps < 0) fps = 0;
+    }
+    
+    // Update indicators real-time (every frame, even when rendering is skipped)
+    updateFPSIndicator();
+    updateFrameTimeIndicator();
+    updateSmoothnessIndicator();
+    
+    // Only render and update scene if frame should be rendered
+    if (shouldRender) {
+        time += 0.01;
+        
+        // Rotasi box
+        box.rotation.x += 0.005;
+        box.rotation.y += 0.01;
+        
+        // Update shadow matrix saat box berputar
+        shadowBox.matrix.identity();
+        shadowBox.matrix.copy(shadowMatrix);
+        shadowBox.matrix.multiply(box.matrix);
+        
+        // Update controls
+        controls.update();
+        
+        // Render
+        renderer.render(scene, camera);
+    }
 }
 
 // Handle window resize
@@ -186,5 +349,36 @@ window.addEventListener('resize', () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// Start animation
-animate();
+// Setup FPS limit toggle
+function setupFPSLimitToggle() {
+    const toggle = document.getElementById('fps-limit-toggle');
+    if (toggle) {
+        toggle.addEventListener('change', function() {
+            fpsLimitEnabled = this.checked;
+            lastFrameTime = performance.now(); // Reset frame timing
+            console.log('FPS Limit 60:', fpsLimitEnabled ? 'Enabled' : 'Disabled');
+        });
+    }
+}
+
+// Wait for DOM to be ready before starting animation and updating indicators
+function init() {
+    // Setup FPS limit toggle
+    setupFPSLimitToggle();
+    
+    // Initialize indicators once DOM is ready
+    updateFPSIndicator();
+    updateFrameTimeIndicator();
+    updateSmoothnessIndicator();
+    
+    // Start animation
+    animate();
+}
+
+// Check if DOM is already loaded
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    // DOM is already ready
+    init();
+}
